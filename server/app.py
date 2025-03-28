@@ -20,10 +20,138 @@ db.init_app(app)
 api = Api(app)
 
 
-@app.route("/")
-def index():
-    return "<h1>Code challenge</h1>"
+# Home resource
+class Home(Resource):
+    def get(self):
+        return {"message": "Pizza Restaurant API"}
+
+# Restaurant resources
+class Restaurants(Resource):
+    def get(self):
+        restaurants = [restaurant.to_dict(only=('id', 'name', 'address')) 
+                       for restaurant in Restaurant.query.all()]
+        
+        response = make_response(
+            restaurants,
+            200
+        )
+        
+        return response
+
+class RestaurantByID(Resource):
+    def get(self, id):
+        restaurant = Restaurant.query.get(id)
+        
+        if not restaurant:
+            response = make_response(
+                {"error": "Restaurant not found"},
+                404
+            )
+            return response
+        
+        response_dict = restaurant.to_dict()
+        
+        response = make_response(
+            response_dict,
+            200
+        )
+        
+        return response
+    
+    def delete(self, id):
+        restaurant = Restaurant.query.get(id)
+        
+        if not restaurant:
+            response = make_response(
+                {"error": "Restaurant not found"},
+                404
+            )
+            return response
+        
+        db.session.delete(restaurant)
+        db.session.commit()
+        
+        response = make_response(
+            "",
+            204
+        )
+        
+        return response
+
+# Pizza resources
+class Pizzas(Resource):
+    def get(self):
+        pizzas = [pizza.to_dict(only=('id', 'name', 'ingredients')) 
+                  for pizza in Pizza.query.all()]
+        
+        response = make_response(
+            pizzas,
+            200
+        )
+        
+        return response
+
+# RestaurantPizza resources
+class RestaurantPizzas(Resource):
+    def post(self):
+        try:
+            data = request.get_json()
+            
+            restaurant = Restaurant.query.get(data.get('restaurant_id'))
+            pizza = Pizza.query.get(data.get('pizza_id'))
+            
+            if not restaurant:
+                response = make_response(
+                    {"errors": ["Restaurant not found"]},
+                    404
+                )
+                return response
+            
+            if not pizza:
+                response = make_response(
+                    {"errors": ["Pizza not found"]},
+                    404
+                )
+                return response
+            
+            new_restaurant_pizza = RestaurantPizza(
+                price=data.get('price'),
+                restaurant_id=data.get('restaurant_id'),
+                pizza_id=data.get('pizza_id')
+            )
+            
+            db.session.add(new_restaurant_pizza)
+            db.session.commit()
+            
+            response_dict = new_restaurant_pizza.to_dict()
+            
+            response = make_response(
+                response_dict,
+                201
+            )
+            
+            return response
+            
+        except ValueError as e:
+            response = make_response(
+                {"errors": [str(e)]},
+                400  # Using 400 for validation errors as per tests
+            )
+            return response
+        except Exception as e:
+            response = make_response(
+                {"errors": [str(e)]},
+                400
+            )
+            return response
 
 
-if __name__ == "__main__":
+# Register resources with API endpoints
+api.add_resource(Home, '/')
+api.add_resource(Restaurants, '/restaurants')
+api.add_resource(RestaurantByID, '/restaurants/<int:id>')
+api.add_resource(Pizzas, '/pizzas')
+api.add_resource(RestaurantPizzas, '/restaurant_pizzas')
+
+if __name__ == '__main__':
     app.run(port=5555, debug=True)
